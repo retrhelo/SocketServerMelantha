@@ -42,6 +42,7 @@ int fifo_enqueue(struct fifo_t *fifo, int socket_fd,
 		tmp->next = fifo->tail->next;
 		fifo->tail->next = tmp;
 	}
+	fifo->tail = tmp;
 
 	// assign basic values 
 	tmp->socket_fd = socket_fd;
@@ -66,7 +67,7 @@ struct fifo_node *get_head(struct fifo_t *fifo, int *socket_fd,
 	struct fifo_node *tmp;
 
 	tmp = fifo->head;
-	if (tmp->is_active) {
+	if (tmp && tmp->is_active) {
 		*socket_fd = tmp->socket_fd;
 		*fp = tmp->p_file;
 		*filetype = tmp->filetype;
@@ -83,7 +84,7 @@ void fifo_destruct(struct fifo_t *fifo) {
 	while (fifo->head != tmp) {
 		if (tmp->is_active) {
 			close(tmp->socket_fd);
-			fclose(tmp->p_file);
+			if (tmp->p_file) fclose(tmp->p_file);
 		}
 		pre = tmp;
 		tmp = tmp->next;

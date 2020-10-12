@@ -28,6 +28,8 @@ enum http_response_t {
 	CSS, 
 };
 
+void http_send_404(int socket_fd);
+
 /* 
 	Inspect the queue, and send http messages according to its node. 
 	Return 

@@ -1,6 +1,7 @@
 // Author: Artyom Liu 
 
 #include <pthread.h>
+#include <semaphore.h>
 
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -8,6 +9,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "fifo.h"
 #include "config.h"
@@ -16,6 +18,9 @@
 /* tasklist */
 static struct fifo_t *tasklist;
 static pthread_mutex_t task_lock;
+/* semaphores */
+#define MAX_TASKS 	6
+static sem_t empty, full;
 
 #define _task_enter_cs() \
 	pthread_mutex_lock(&task_lock) 
@@ -23,8 +28,8 @@ static pthread_mutex_t task_lock;
 	pthread_mutex_unlock(&task_lock) 
 
 // handlers 
-static void *sender_handler(void *args);
-static void *receiver_handler(void *args);
+static void sender_handler(void *args);
+static void receiver_handler(void *args);
 
 // sender
 #define SENDER_NUM 	3
@@ -36,6 +41,8 @@ void mthread_init(struct fifo_t *fifo) {
 
 	// init tasklist
 	pthread_mutex_init(&task_lock, NULL);
+	sem_init(&empty, 0, MAX_TASKS);
+	sem_init(&full, 0, 0);
 	tasklist = fifo;
 	// init mthread_sigrun 
 	mthread_sigrun = 1;
@@ -51,6 +58,7 @@ void mthread_enter(int socket_fd) {
 	size_t n = sizeof(client);
 
 	while ((new_socket = accept(socket_fd, (struct sockaddr*)&client, &n)) >= 0) {
+		printf("Request from %s\n", inet_ntoa(client.sin_addr));
 		if (pthread_create(&thr, NULL, receiver_handler, &new_socket) < 0) 
 			perror("mthread_enter(): failed to create thread");
 		else while (new_socket) 	// wait for receiver_handler to read new_socket 
@@ -59,9 +67,10 @@ void mthread_enter(int socket_fd) {
 }
 
 void mthread_end(void) {
-	int i;
-
 	mthread_sigrun = 0;
+
+	sem_destroy(&empty);
+	sem_destroy(&full);
 }
 
 static enum http_response_t get_type(char const *filename) {
@@ -83,7 +92,7 @@ static enum http_response_t get_type(char const *filename) {
 	return ret;
 }
 
-static void *receiver_handler(void *args) {
+static void receiver_handler(void *args) {
 	int socket_fd = *(int*)args;
 	*(int*)args = 0;
 	FILE *fp;
@@ -92,45 +101,59 @@ static void *receiver_handler(void *args) {
 	enum http_response_t rt;
 
 	while (http_resolve(socket_fd, filename, 64) >= 0) {
-		// for debug
-		printf("receiver_handler(): %lu: %s\n", pthread_self(), 
-				filename);
+		if (0 == strcmp(filename, "")) continue;
 		strcpy(fullname, config_current.root);
 		strcat(fullname, filename);
-		if (0 == strcmp(filename, "/")) 
+		if (0 == strcmp(filename, "/")) {
 			strcat(fullname, "index.html");
+			strcat(filename, "index.html");
+		}
 
 		fp = fopen(fullname, "rb");
 		rt = (NULL == fp ? TYPE_ERROR : get_type(filename));
 
+		if (TYPE_ERROR == rt)
+			printf("%s not found\n", filename);
+
+		sem_wait(&empty);
+
 		_task_enter_cs();
 		fifo_enqueue(tasklist, socket_fd, fp, rt);
 		_task_leave_cs();
+
+		sem_post(&full);
+
+		filename[0] = '\0';
 	}
 	close(socket_fd);
 	pthread_detach(pthread_self());
 }
 
-static void *sender_handler(void *args) {
+static void sender_handler(void *args) {
 	FILE *fp;
 	int socket_fd;
 	void *ret;
 	enum http_response_t ftype;
 
 	while (mthread_sigrun) {
+		sem_wait(&full);
+
 		_task_enter_cs();
 
-		if (ret = get_head(tasklist, &socket_fd, &fp, &ftype)) 
-			fifo_dequeue(tasklist);
+		ret = get_head(tasklist, &socket_fd, &fp, &ftype);
+		fifo_dequeue(tasklist);
 
 		_task_leave_cs();
 
-		if (NULL == ret) {
-			//sleep(0.005);		// sleep for 5ms 
-			continue;
-		}
+		sem_post(&empty);
 
-		http_send(socket_fd, ftype, fp);
+		if (NULL == ret) continue;
+
+		if (TYPE_ERROR == ftype) 
+			http_send_404(socket_fd);
+		else 
+			http_send(socket_fd, ftype, fp);
+
 		if (fp) fclose(fp);
 	}
 

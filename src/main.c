@@ -27,8 +27,6 @@ static struct fifo_t *tasklist = NULL;
 static int socket_fd = 0;
 
 void exit_handler(int sig) {
-	int i;
-
 	printf("Exiting Melantha...\n");
 
 	// shutdown all threads 
@@ -52,7 +50,7 @@ void exit_handler(int sig) {
 int main(int argc, char *argv[]) {
 	int i;
 
-	static char const *version = "0.2";
+	static char const *version = "0.5";
 	static char const *help_msg = 
 			"Usage: %s [Options]\n"
 			"Options:\n"

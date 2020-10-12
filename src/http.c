@@ -27,9 +27,10 @@ enum http_cmd_t http_resolve(int socket_fd, char *filename, int size) {
 
 	while ((ret = recv(socket_fd, buf, RECV_BUF_SIZE, 0)) >= 0) {
 		i = 0;
+		buf[ret] = '\0';
 		if (tmp = strstr(buf, HTTP_CMD_GET)) {
 			tmp = tmp + 4;
-			while (i < size && ' ' != *tmp) 
+			while (i < size && *tmp && ' ' != *tmp) 
 				filename[i++] = *tmp++;
 			break;
 		}
@@ -115,4 +116,24 @@ int http_send(int socket_fd, enum http_response_t rt, FILE *fp) {
 	}
 
 	return head + text;
+}
+
+void http_send_404(int socket_fd) {
+	char buf[SEND_BUF_SIZE];
+	int cnt;
+
+	static char const *msg_404 = 
+		"<!DOCTYPE html>\r\n"
+		"<html><head>\r\n"
+		"<title>404 Not Found</title>\r\n"
+		"</head><body>\r\n"
+		"<h1>Not Found</h1>\r\n"
+		"<p>The requested URL was not found on this server.</p>\r\n"
+		"</body></html>\r\n";
+	int msg_404_len = strlen(msg_404);
+
+	http_send_head(socket_fd, buf, TYPE_ERROR, msg_404_len);
+	cnt = send(socket_fd, msg_404, msg_404_len, 0);
+	if (-1 == cnt) 
+		perror("http_send_404(): failed to send");
 }
