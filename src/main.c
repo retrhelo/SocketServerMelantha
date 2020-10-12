@@ -52,7 +52,7 @@ void exit_handler(int sig) {
 int main(int argc, char *argv[]) {
 	int i;
 
-	static char const *version = "0.1";
+	static char const *version = "0.2";
 	static char const *help_msg = 
 			"Usage: %s [Options]\n"
 			"Options:\n"
