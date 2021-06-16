@@ -15,7 +15,7 @@ struct config_t {
 	int port;
 };
 
-struct config_t config_current;
+extern struct config_t config_current;
 
 #define CONFIG_ROOT 	"/"		// generally this won't work
 #define CONFIG_PORT 	8080

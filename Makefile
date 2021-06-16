@@ -1,42 +1,30 @@
 # Author: Artyom Liu 
 
-TARGET=melantha
+TARGET := melantha
 
-CC=gcc
+CC := gcc
 
 # Compiler flags 
-C_FLAGS=-g -Iinc -Wall
+C_FLAGS := -g -Iinc -Wall -c 
 
 # Linker flags 
-LINK_FLAGS=-g -pthread
+LINK_FLAGS := -g -pthread
 
-SRC= \
+SRC := \
 src/config.c \
 src/fifo.c \
 src/http.c \
 src/mthread.c \
 src/main.c 
 
-OBJ= \
-obj/config.o \
-obj/fifo.o \
-obj/http.o \
-obj/mthread.o \
-obj/main.o 
+OBJ := $(addprefix obj/, $(notdir $(SRC:.c=.o)))
 
-build/$(TARGET): $(OBJ) build 
-	$(CC) $(LINK_FLAGS) -o $@ $(OBJ) 
+.PHONY: all
+all: $(OBJ) build 
+	$(CC) $(LINK_FLAGS) -o build/$(TARGET) $(OBJ) 
 
-obj/config.o: src/config.c obj 
-	$(CC) $(C_FLAGS) -c $< -o $@
-obj/fifo.o: src/fifo.c obj 
-	$(CC) $(C_FLAGS) -c $< -o $@
-obj/http.o: src/http.c obj 
-	$(CC) $(C_FLAGS) -c $< -o $@
-obj/mthread.o: src/mthread.c obj 
-	$(CC) $(C_FLAGS) -c $< -o $@
-obj/main.o: src/main.c obj 
-	$(CC) $(C_FLAGS) -c $< -o $@
+obj/%.o: src/%.c obj
+	$(CC) $(C_FLAGS) $< -o $@
 
 build: 
 	mkdir build 
@@ -44,5 +32,6 @@ build:
 obj: 
 	mkdir obj 
 
+.PHONY: clean
 clean: 
 	rm -r obj build 

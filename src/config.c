@@ -9,6 +9,8 @@
 
 #include "config.h"
 
+struct config_t config_current;
+
 static int readline(FILE *fp, char *buf, int n) {
 	int i = 0;
 	char tmp;
